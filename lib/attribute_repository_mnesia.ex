@@ -756,7 +756,7 @@ defmodule AttributeRepositoryMnesia do
     )
   end
 
-  defp do_search({:pr, %AttributeRepository.Search.AttributePath{
+  defp do_search({:pr, %AttributePath{
     attribute: attribute,
     sub_attribute: sub_attribute
   }}, run_opts) do
@@ -774,7 +774,112 @@ defmodule AttributeRepositoryMnesia do
     )
   end
 
-  defp attribute_path_to_match_spec_field(%AttributePath{
+  defp do_search({:valuePath, %AttributePath{attribute: attribute}, val_filter}, run_opts) do
+    {match_map, guard} = build_value_path(val_filter, 2)
+    IO.inspect(match_map)
+    IO.inspect(guard)
+
+    match_spec =
+      [
+        {
+          {
+            run_opts[:instance],
+            :"$1",
+            attribute,
+            match_map
+          },
+          [guard],
+          [:"$1"]
+        }
+      ]
+
+    :mnesia.dirty_select(run_opts[:instance], match_spec)
+  end
+
+  def build_value_path({:and, lhs, rhs}, match_seq_n) do
+    {lhs_match_map, lhs_guard} = build_value_path(lhs, match_seq_n)
+    {rhs_match_map, rhs_guard} = build_value_path(rhs, match_seq_n + 1)
+
+    {
+      Map.merge(lhs_match_map, rhs_match_map),
+      {:andalso, lhs_guard, rhs_guard}
+    }
+  end
+
+  def build_value_path({:or, lhs, rhs}, match_seq_n) do
+    {lhs_match_map, lhs_guard} = build_value_path(lhs, match_seq_n)
+    {rhs_match_map, rhs_guard} = build_value_path(rhs, match_seq_n + 1)
+
+    {
+      Map.merge(lhs_match_map, rhs_match_map),
+      {:or, lhs_guard, rhs_guard}
+    }
+  end
+
+  def build_value_path({:eq, attr_path, value}, match_seq_n) do
+    match_var = :"$#{match_seq_n}"
+
+    {
+      %{attr_path.attribute => match_var},
+      {:"==", match_var, value}
+    }
+  end
+
+  def build_value_path({:ne, attr_path, value}, match_seq_n) do
+    match_var = :"$#{match_seq_n}"
+
+    {
+      %{attr_path.attribute => match_var},
+      {:"/=", match_var, value}
+    }
+  end
+
+  def build_value_path({:gt, attr_path, value}, match_seq_n) do
+    match_var = :"$#{match_seq_n}"
+
+    {
+      %{attr_path.attribute => match_var},
+      {:">", match_var, value}
+    }
+  end
+
+  def build_value_path({:ge, attr_path, value}, match_seq_n) do
+    match_var = :"$#{match_seq_n}"
+
+    {
+      %{attr_path.attribute => match_var},
+      {:">=", match_var, value}
+    }
+  end
+
+  def build_value_path({:lt, attr_path, value}, match_seq_n) do
+    match_var = :"$#{match_seq_n}"
+
+    {
+      %{attr_path.attribute => match_var},
+      {:"<", match_var, value}
+    }
+  end
+
+  def build_value_path({:le, attr_path, value}, match_seq_n) do
+    match_var = :"$#{match_seq_n}"
+
+    {
+      %{attr_path.attribute => match_var},
+      {:"=<", match_var, value}
+    }
+  end
+
+  def build_value_path({:pr, attr_path}, match_seq_n) do
+    match_var = :"$#{match_seq_n}"
+
+    {
+      %{attr_path.attribute => match_var},
+      {:"/=", match_var, nil}
+    }
+  end
+
+  def pattribute_path_to_match_spec_field(%AttributePath{
     sub_attribute: nil
   }) do
     :"$2"
