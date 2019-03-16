@@ -48,19 +48,7 @@ defmodule AttributeRepositoryMnesia do
   def get(resource_id, :all, run_opts) do
     case :mnesia.transaction(fn -> :mnesia.read(run_opts[:instance], resource_id) end) do
       {:atomic, [_element | _] = record_list} ->
-        {:ok,
-          Enum.reduce(
-            record_list,
-            %{},
-            fn
-              {_table, _resource_id, attribute, {:datetime, dt_value}}, res ->
-                Map.put(res, attribute, elem(DateTime.from_unix(dt_value), 1))
-
-              {_table, _resource_id, attribute, value}, res ->
-                Map.put(res, attribute, value)
-            end
-          )
-        }
+        {:ok, build_result(record_list)}
 
       {:atomic, []} ->
         {:error, AttributeRepository.Read.NotFoundError.exception([])}
@@ -89,20 +77,8 @@ defmodule AttributeRepositoryMnesia do
 
       :mnesia.select(run_opts[:instance], match_spec)
     end) do
-      {:atomic, [_element | _] = object_list} ->
-        {:ok,
-          Enum.reduce(
-            object_list,
-            %{},
-            fn
-              {_table, _resource_id, attribute, {:datetime, dt_value}}, res ->
-                Map.put(res, attribute, elem(DateTime.from_unix(dt_value), 1))
-
-              {_table, _resource_id, attribute, value}, res ->
-                Map.put(res, attribute, value)
-            end
-          )
-        }
+      {:atomic, [_element | _] = record_list} ->
+        {:ok, build_result(record_list)}
 
       {:atomic, []} ->
         {:error, AttributeRepository.Read.NotFoundError.exception([])}
@@ -111,6 +87,36 @@ defmodule AttributeRepositoryMnesia do
         {:error, AttributeRepository.ReadError.exception([])}
     end
   end
+
+  defp build_result(record_list) do
+    Enum.reduce(
+      record_list,
+      %{},
+      fn
+        {_table, _resource_id, attribute, value}, res ->
+          value =
+            case value do
+              {:datetime, dt_value} ->
+                elem(DateTime.from_unix(dt_value), 1)
+
+              _ ->
+                value
+            end
+
+          case Map.get(res, attribute) do
+            nil ->
+              Map.put(res, attribute, value)
+
+            l when is_list(l) ->
+              Map.put(res, attribute, [value | l])
+
+            simple_val ->
+              Map.put(res, attribute, [value, simple_val])
+          end
+      end
+    )
+  end
+
   @impl AttributeRepository.Write
 
   def put(resource_id, %{} = resource, run_opts) do
