@@ -99,6 +99,19 @@ defmodule AttributeRepositoryMnesia do
               {:datetime, dt_value} ->
                 elem(DateTime.from_unix(dt_value), 1)
 
+              %{} ->
+                Enum.reduce(
+                  value,
+                  %{},
+                  fn
+                    {key, {:datetime, dt_value}}, acc ->
+                      Map.put(acc, key, elem(DateTime.from_unix(dt_value), 1))
+
+                    {key, value}, acc ->
+                      Map.put(acc, key, value)
+                  end
+                )
+
               _ ->
                 value
             end
@@ -129,6 +142,19 @@ defmodule AttributeRepositoryMnesia do
           case val do
             %DateTime{} ->
               {:datetime, DateTime.to_unix(val)}
+
+            %{} ->
+              Enum.reduce(
+                val,
+                %{},
+                fn
+                  {key, %DateTime{} = value}, acc ->
+                    Map.put(acc, key, {:datetime, DateTime.to_unix(value)})
+
+                  {key, value}, acc ->
+                    Map.put(acc, key, value)
+                end
+              )
 
             _ ->
               val
@@ -174,8 +200,13 @@ defmodule AttributeRepositoryMnesia do
 
   @impl AttributeRepository.Search
 
-  def search(filter, _attributes, run_opts) do
-    do_search(filter, run_opts)
+  def search(filter, attributes, run_opts) do
+    for resource_id <- Enum.dedup(do_search(filter, run_opts)) do
+      {resource_id, get!(resource_id, attributes, run_opts)}
+    end
+  rescue
+    e ->
+      {:error, e}
   end
 
   @spec do_search(any(), AttributeRepository.run_opts()) :: [AttributeRepository.resource_id]
@@ -295,7 +326,7 @@ defmodule AttributeRepositoryMnesia do
             attribute,
             attribute_path_to_match_spec_field_datetime(attr_path)
           },
-          [{:"==", :"$2", value}],
+          [{:"==", :"$2", DateTime.to_unix(value)}],
           [:"$1"]
         }
       ]
@@ -427,7 +458,7 @@ defmodule AttributeRepositoryMnesia do
     raise "Invalid operation for boolean"
   end
 
-  defp do_search({:gt, %AttributePath{attribute: attribute}, value} = attr_path,
+  defp do_search({:gt, %AttributePath{attribute: attribute} = attr_path, value},
                  run_opts)
   when is_float(value) do
     match_spec =
@@ -763,7 +794,7 @@ defmodule AttributeRepositoryMnesia do
     :mnesia.dirty_match_object({run_opts[:instance], :"_", attribute, %{sub_attribute => :"_"}})
     |> Enum.filter(
       fn
-        {_table, _resource_id, _attribute, %{sub_attribute: nil}} -> false
+        {_table, _resource_id, _attribute, %{^sub_attribute => nil}} -> false
         {_table, _resource_id, _attribute, _} -> true
       end
     )
@@ -891,7 +922,7 @@ defmodule AttributeRepositoryMnesia do
 
     [{
       %{attr_path.attribute => match_var},
-      {:"/=", match_var, nil}
+      {:"/=", match_var, :nil}
     }]
   end
 
