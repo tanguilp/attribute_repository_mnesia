@@ -817,7 +817,7 @@ defmodule AttributeRepositoryMnesia do
               attribute,
               match_map
             },
-            guard,
+            [guard],
             [:"$1"]
           }
         end
@@ -868,7 +868,7 @@ defmodule AttributeRepositoryMnesia do
 
     [{
       %{attr_path.attribute => match_var},
-      [{:is_binary, :"$2"}, {op_to_match_spec_atom_op(op), match_var, value}]
+      {:andalso, {:is_binary, match_var}, {op_to_match_spec_atom_op(op), match_var, value}}
     }]
   end
 
@@ -878,7 +878,7 @@ defmodule AttributeRepositoryMnesia do
 
     [{
       %{attr_path.attribute => match_var},
-      [{:is_atom, :"$2"}, {op_to_match_spec_atom_op(op), match_var, value}]
+      {:andalso, {:is_atom, match_var}, {op_to_match_spec_atom_op(op), match_var, value}}
     }]
   end
 
@@ -891,7 +891,7 @@ defmodule AttributeRepositoryMnesia do
 
     [{
       %{attr_path.attribute => match_var},
-      [{:is_float, :"$2"}, {op_to_match_spec_atom_op(op), match_var, value}]
+      {:andalso, {:is_float, match_var}, {op_to_match_spec_atom_op(op), match_var, value}}
     }]
   end
 
@@ -900,7 +900,7 @@ defmodule AttributeRepositoryMnesia do
 
     [{
       %{attr_path.attribute => match_var},
-      [{:is_integer, :"$2"}, {op_to_match_spec_atom_op(op), match_var, value}]
+      {:andalso, {:is_integer, match_var}, {op_to_match_spec_atom_op(op), match_var, value}}
     }]
   end
 
@@ -909,7 +909,7 @@ defmodule AttributeRepositoryMnesia do
 
     [{
       %{attr_path.attribute => {:datetime, match_var}},
-      [{op_to_match_spec_atom_op(op), match_var, DateTime.to_unix(value)}]
+      {op_to_match_spec_atom_op(op), match_var, DateTime.to_unix(value)}
     }]
   end
 

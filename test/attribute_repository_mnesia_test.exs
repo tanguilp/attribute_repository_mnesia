@@ -15,26 +15,29 @@ defmodule AttributeRepositoryMnesiaTest do
         %{
           "str" => ?a..?z |> Enum.chunk_every(3) |> Enum.at(i - 1) |> List.to_string(),
           "bool" => rem(i, 3) == 0,
-          "float" => i * 1.0, 
+          "float" => i * 1.0,
           "int" => i,
           "datetime" => DateTime.from_iso8601("#{2000 + i}-01-23T23:50:07Z") |> elem(1),
           "complex" => %{
             "str" => ?a..?z |> Enum.chunk_every(3) |> Enum.at(i - 1) |> List.to_string(),
             "bool" => rem(i, 3) == 0,
-            "float" => i * 1.0, 
+            "float" => i * 1.0,
             "int" => i,
             "datetime" => DateTime.from_iso8601("#{2000 + i}-01-23T23:50:07Z") |> elem(1),
           }
         },
         @run_opts)
-
-      AttributeRepositoryMnesia.put(i, %{"multval" => "Hi"}, @run_opts)
-      AttributeRepositoryMnesia.put(i, %{"multval" => "Salut"}, @run_opts)
-      AttributeRepositoryMnesia.put(i, %{"multval" => "Привет"}, @run_opts)
     end
 
+    AttributeRepositoryMnesia.put(3, %{"multval" => "Hi"}, @run_opts)
+    AttributeRepositoryMnesia.put(3, %{"multval" => "Salut"}, @run_opts)
+    AttributeRepositoryMnesia.put(3, %{"multval" => "Привет"}, @run_opts)
+
+    AttributeRepositoryMnesia.put(4, %{"multval" => "Hi"}, @run_opts)
+    AttributeRepositoryMnesia.put(4, %{"multval" => "Salut"}, @run_opts)
+
     AttributeRepositoryMnesia.put(1, %{"nil_attr" => nil}, @run_opts)
-    AttributeRepositoryMnesia.put(1, %{"nil_attr_complex" => %{"nil_attr" => nil}}, @run_opts)
+    AttributeRepositoryMnesia.put(1, %{"nil_attr_complex" => %{"nil_attr" => nil, "not_nil_attr" => "a value"}}, @run_opts)
 
     IO.inspect(AttributeRepositoryMnesia.get(1, :all, @run_opts))
   end
@@ -48,14 +51,6 @@ defmodule AttributeRepositoryMnesiaTest do
     assert res["int"] === 1
     assert DateTime.compare(res["datetime"],
                             elem(DateTime.from_iso8601("2001-01-23T23:50:07Z"), 1))
-    assert res["multval"] in [
-      ["Hi", "Salut", "Привет"],
-      ["Hi", "Привет", "Salut"],
-      ["Salut", "Привет", "Hi"],
-      ["Привет", "Salut", "Hi"],
-      ["Привет", "Hi", "Salut"],
-      ["Salut", "Hi", "Привет"]
-    ]
     assert res["complex"]["str"] == "abc"
     assert res["complex"]["bool"] == false
     assert res["complex"]["float"] === 1.0
@@ -64,8 +59,21 @@ defmodule AttributeRepositoryMnesiaTest do
                             elem(DateTime.from_iso8601("2001-01-23T23:50:07Z"), 1))
   end
 
+  test "Multival get" do
+    {:ok, res} = AttributeRepositoryMnesia.get(3, :all, @run_opts)
+
+    assert res["multval"] in [
+      ["Hi", "Salut", "Привет"],
+      ["Hi", "Привет", "Salut"],
+      ["Salut", "Привет", "Hi"],
+      ["Привет", "Salut", "Hi"],
+      ["Привет", "Hi", "Salut"],
+      ["Salut", "Hi", "Привет"]
+    ]
+  end
+
   # eq operator
-  
+
   test "search eq string" do
     assert ordered_ids(search('str eq "def"')) == [2]
   end
@@ -168,8 +176,28 @@ defmodule AttributeRepositoryMnesiaTest do
     assert ordered_ids(search('complex.datetime ne "2008-01-23T23:50:07Z"')) == [1, 2, 3, 4, 5, 6, 7, 9]
   end
 
+  test "search ne string in complex - valuepath" do
+    assert ordered_ids(search('complex[str ne "def"]')) == [1, 3, 4, 5, 6, 7, 8, 9]
+  end
+
+  test "search ne bool in complex - valuepath" do
+    assert ordered_ids(search('complex[bool ne true]')) == [1, 2, 4, 5, 7, 8]
+  end
+
+  test "search ne float in complex - valuepath" do
+    assert ordered_ids(search('complex[float ne 5.0e0]')) == [1, 2, 3, 4, 6, 7, 8, 9]
+  end
+
+  test "search ne integer in complex - valuepath" do
+    assert ordered_ids(search('complex[int ne 4]')) == [1, 2, 3, 5, 6, 7, 8, 9]
+  end
+
+  test "search ne date in complex - valuepath" do
+    assert ordered_ids(search('complex[datetime ne "2008-01-23T23:50:07Z"]')) == [1, 2, 3, 4, 5, 6, 7, 9]
+  end
+
   # gt operator
-  
+
   test "search gt string" do
     assert ordered_ids(search('str gt "def"')) == [3, 4, 5, 6, 7, 8, 9]
   end
@@ -210,8 +238,28 @@ defmodule AttributeRepositoryMnesiaTest do
     assert ordered_ids(search('complex.datetime gt "2008-01-23T23:50:07Z"')) == [9]
   end
 
+  test "search gt string in complex - valuepath" do
+    assert ordered_ids(search('complex[str gt "def"]')) == [3, 4, 5, 6, 7, 8, 9]
+  end
+
+  test "search gt bool in complex - valuepath" do
+    assert {:error, _} = search('complex[bool gt true]')
+  end
+
+  test "search gt float in complex - valuepath" do
+    assert ordered_ids(search('complex[float gt 5.0e0]')) == [6, 7, 8, 9]
+  end
+
+  test "search gt integer in complex - valuepath" do
+    assert ordered_ids(search('complex[int gt 4]')) == [5, 6, 7, 8, 9]
+  end
+
+  test "search gt date in complex - valuepath" do
+    assert ordered_ids(search('complex[datetime gt "2008-01-23T23:50:07Z"]')) == [9]
+  end
+
   # ge operator
-  
+
   test "search ge string" do
     assert ordered_ids(search('str ge "def"')) == [2, 3, 4, 5, 6, 7, 8, 9]
   end
@@ -252,8 +300,28 @@ defmodule AttributeRepositoryMnesiaTest do
     assert ordered_ids(search('complex.datetime ge "2008-01-23T23:50:07Z"')) == [8, 9]
   end
 
+  test "search ge string in complex - valuepath" do
+    assert ordered_ids(search('complex[str ge "def"]')) == [2, 3, 4, 5, 6, 7, 8, 9]
+  end
+
+  test "search ge bool in complex - valuepath" do
+    assert {:error, _} = search('complex[bool ge true]')
+  end
+
+  test "search ge float in complex - valuepath" do
+    assert ordered_ids(search('complex[float ge 5.0e0]')) == [5, 6, 7, 8, 9]
+  end
+
+  test "search ge integer in complex - valuepath" do
+    assert ordered_ids(search('complex[int ge 4]')) == [4, 5, 6, 7, 8, 9]
+  end
+
+  test "search ge date in complex - valuepath" do
+    assert ordered_ids(search('complex[datetime ge "2008-01-23T23:50:07Z"]')) == [8, 9]
+  end
+
   # lt operator
-  
+
   test "search lt string" do
     assert ordered_ids(search('str lt "def"')) == [1]
   end
@@ -294,8 +362,28 @@ defmodule AttributeRepositoryMnesiaTest do
     assert ordered_ids(search('complex.datetime lt "2008-01-23T23:50:07Z"')) == [1, 2, 3, 4, 5, 6, 7]
   end
 
+  test "search lt string in complex - valuepath" do
+    assert ordered_ids(search('complex[str lt "def"]')) == [1]
+  end
+
+  test "search lt bool in complex - valuepath" do
+    assert {:error, _} = search('complex[bool lt true]')
+  end
+
+  test "search lt float in complex - valuepath" do
+    assert ordered_ids(search('complex[float lt 5.0e0]')) == [1, 2, 3, 4]
+  end
+
+  test "search lt integer in complex - valuepath" do
+    assert ordered_ids(search('complex[int lt 4]')) == [1, 2, 3]
+  end
+
+  test "search lt date in complex - valuepath" do
+    assert ordered_ids(search('complex[datetime lt "2008-01-23T23:50:07Z"]')) == [1, 2, 3, 4, 5, 6, 7]
+  end
+
   # le operator
-  
+
   test "search le string" do
     assert ordered_ids(search('str le "def"')) == [1, 2]
   end
@@ -336,6 +424,26 @@ defmodule AttributeRepositoryMnesiaTest do
     assert ordered_ids(search('complex.datetime le "2008-01-23T23:50:07Z"')) == [1, 2, 3, 4, 5, 6, 7, 8]
   end
 
+  test "search le string in complex - valuepath" do
+    assert ordered_ids(search('complex[str le "def"]')) == [1, 2]
+  end
+
+  test "search le bool in complex - valuepath" do
+    assert {:error, _} = search('complex[bool le true]')
+  end
+
+  test "search le float in complex - valuepath" do
+    assert ordered_ids(search('complex[float le 5.0e0]')) == [1, 2, 3, 4, 5]
+  end
+
+  test "search le integer in complex - valuepath" do
+    assert ordered_ids(search('complex[int le 4]')) == [1, 2, 3, 4]
+  end
+
+  test "search le date in complex - valuepath" do
+    assert ordered_ids(search('complex[datetime le "2008-01-23T23:50:07Z"]')) == [1, 2, 3, 4, 5, 6, 7, 8]
+  end
+
   # pr operator
 
   test "search pr no attribute" do
@@ -361,6 +469,64 @@ defmodule AttributeRepositoryMnesiaTest do
   test "search pr attribute present complex" do
     assert ordered_ids(search('complex.float pr')) == [1, 2, 3, 4, 5, 6, 7, 8, 9]
   end
+
+  test "search pr no attribute complex - valuepath" do
+    assert ordered_ids(search('nil_attr_complex[nonexistant pr]')) == []
+  end
+
+  test "search pr attribute is nil complex - valuepath" do
+    assert ordered_ids(search('nil_attr_complex[nil_attr pr]')) == []
+  end
+
+  test "search pr attribute present complex - valuepath" do
+    assert ordered_ids(search('complex[float pr]')) == [1, 2, 3, 4, 5, 6, 7, 8, 9]
+  end
+
+  # valuePath :and and :or operator tests
+
+  test "search valuepath and operator 1" do
+    assert ordered_ids(search('complex[str eq "abc" and int eq 1]')) == [1]
+  end
+
+  test "search valuepath and operator 2" do
+    assert ordered_ids(search('complex[int ge 5 and bool eq false]')) == [5, 7, 8]
+  end
+
+  test "search valuepath and operator 3" do
+    assert ordered_ids(search('complex[str gt "abc" and int lt 9 and bool eq true]')) == [3, 6]
+  end
+
+  test "search valuepath and operator 4" do
+    assert ordered_ids(search('complex[str gt "abc" and int lt 9 or bool eq true]')) == [2, 3, 4, 5, 6, 7, 8, 9]
+  end
+
+  test "search valuepath and operator 5" do
+    assert ordered_ids(search('complex[float gt 8.0 or int lt 9 and bool eq true]')) == [3, 6, 9]
+  end
+
+  #test "search valuepath and operator 6" do
+  #  assert ordered_ids(search('complex[(float gt 8.0 or int lt 9) and bool eq true]')) == []
+  #end
+
+  test "search valuepath and operator 7" do
+    assert ordered_ids(search('nil_attr_complex[not_nil_attr pr] and bool eq false')) == [1]
+  end
+
+  # multivalued test
+
+  test "multivalued attr 1" do
+    assert ordered_ids(search('multval eq "Salut"')) == [3, 4]
+  end
+
+  test "multivalued attr 2" do
+    assert ordered_ids(search('multval eq "Salut" and multval eq "Привет"')) == [3]
+  end
+
+  test "multivalued attr 3" do
+    assert ordered_ids(search('multval eq "Salut" or multval eq "Привет"')) == [3, 4]
+  end
+
+  # helper functions
 
   defp search(req) do
     {_, parsed} = :filter.parse(:filter_lexer.string(req) |> elem(1))
