@@ -247,7 +247,7 @@ defmodule AttributeRepositoryMnesia do
             attribute,
             attribute_path_to_match_spec_field(attr_path)
           },
-          [{:"==", :'$2', value}],
+          [{:is_binary, :"$2"}, {:"==", :'$2', value}],
           [:"$1"]
         }
       ]
@@ -346,7 +346,7 @@ defmodule AttributeRepositoryMnesia do
             attribute,
             attribute_path_to_match_spec_field(attr_path)
           },
-          [{:"=/=", :'$2', value}],
+          [{:is_binary, :"$2"}, {:"=/=", :'$2', value}],
           [:"$1"]
         }
       ]
@@ -445,7 +445,7 @@ defmodule AttributeRepositoryMnesia do
             attribute,
             attribute_path_to_match_spec_field(attr_path)
           },
-          [{:">", :'$2', value}],
+          [{:is_binary, :"$2"}, {:">", :'$2', value}],
           [:"$1"]
         }
       ]
@@ -529,7 +529,7 @@ defmodule AttributeRepositoryMnesia do
             attribute,
             attribute_path_to_match_spec_field(attr_path)
           },
-          [{:">=", :'$2', value}],
+          [{:is_binary, :"$2"}, {:">=", :'$2', value}],
           [:"$1"]
         }
       ]
@@ -613,7 +613,7 @@ defmodule AttributeRepositoryMnesia do
             attribute,
             attribute_path_to_match_spec_field(attr_path)
           },
-          [{:"<", :'$2', value}],
+          [{:is_binary, :"$2"}, {:"<", :'$2', value}],
           [:"$1"]
         }
       ]
@@ -697,7 +697,7 @@ defmodule AttributeRepositoryMnesia do
             attribute,
             attribute_path_to_match_spec_field(attr_path)
           },
-          [{:"=<", :'$2', value}],
+          [{:is_binary, :"$2"}, {:"=<", :'$2', value}],
           [:"$1"]
         }
       ]
@@ -817,7 +817,7 @@ defmodule AttributeRepositoryMnesia do
               attribute,
               match_map
             },
-            [guard],
+            guard,
             [:"$1"]
           }
         end
@@ -863,57 +863,53 @@ defmodule AttributeRepositoryMnesia do
     build_value_path(lhs, match_seq_n) ++ build_value_path(rhs, match_seq_n + 1)
   end
 
-  defp build_value_path({:eq, attr_path, value}, match_seq_n) do
+  defp build_value_path({op, attr_path, value}, match_seq_n) when is_binary(value) do
     match_var = :"$#{match_seq_n}"
 
     [{
       %{attr_path.attribute => match_var},
-      {:"==", match_var, value}
+      [{:is_binary, :"$2"}, {op_to_match_spec_atom_op(op), match_var, value}]
     }]
   end
 
-  defp build_value_path({:ne, attr_path, value}, match_seq_n) do
+  defp build_value_path({op, attr_path, value}, match_seq_n)
+  when is_boolean(value) and op in [:eq, :ne] do
     match_var = :"$#{match_seq_n}"
 
     [{
       %{attr_path.attribute => match_var},
-      {:"/=", match_var, value}
+      [{:is_atom, :"$2"}, {op_to_match_spec_atom_op(op), match_var, value}]
     }]
   end
 
-  defp build_value_path({:gt, attr_path, value}, match_seq_n) do
+  defp build_value_path({_op, _attr_path, value}, _match_seq_n) when is_boolean(value) do
+    raise "Invalid operation for boolean"
+  end
+
+  defp build_value_path({op, attr_path, value}, match_seq_n) when is_float(value) do
     match_var = :"$#{match_seq_n}"
 
     [{
       %{attr_path.attribute => match_var},
-      {:">", match_var, value}
+      [{:is_float, :"$2"}, {op_to_match_spec_atom_op(op), match_var, value}]
     }]
   end
 
-  defp build_value_path({:ge, attr_path, value}, match_seq_n) do
+  defp build_value_path({op, attr_path, value}, match_seq_n) when is_integer(value) do
     match_var = :"$#{match_seq_n}"
 
     [{
       %{attr_path.attribute => match_var},
-      {:">=", match_var, value}
+      [{:is_integer, :"$2"}, {op_to_match_spec_atom_op(op), match_var, value}]
     }]
   end
 
-  defp build_value_path({:lt, attr_path, value}, match_seq_n) do
+  defp build_value_path({op, attr_path, %DateTime{} = value}, match_seq_n) do
     match_var = :"$#{match_seq_n}"
 
     [{
-      %{attr_path.attribute => match_var},
-      {:"<", match_var, value}
-    }]
-  end
-
-  defp build_value_path({:le, attr_path, value}, match_seq_n) do
-    match_var = :"$#{match_seq_n}"
-
-    [{
-      %{attr_path.attribute => match_var},
-      {:"=<", match_var, value}
+      %{attr_path.attribute => {:datetime, match_var}},
+      [{op_to_match_spec_atom_op(op), match_var, DateTime.to_unix(value)}]
     }]
   end
 
@@ -949,4 +945,27 @@ defmodule AttributeRepositoryMnesia do
   }) do
     %{sub_attribute => {:datetime, :"$2"}}
   end
+
+  defp to_match_spec_guards(op, %DateTime{} = value) do
+    [{op_to_match_spec_atom_op(op), :'$2', DateTime.to_unix(value)}]
+  end
+
+  defp to_match_spec_guards(op, value) when is_float(value) do
+    [{:is_float, :"$2"}, {op_to_match_spec_atom_op(op), :'$2', value}]
+  end
+
+  defp to_match_spec_guards(op, value) when is_integer(value) do
+    [{:is_integer, :"$2"}, {op_to_match_spec_atom_op(op), :"$2", value}]
+  end
+
+  defp to_match_spec_guards(op, value) do
+    [{op_to_match_spec_atom_op(op), :'$2', value}]
+  end
+
+  defp op_to_match_spec_atom_op(:eq), do: :"=="
+  defp op_to_match_spec_atom_op(:ne), do: :"/="
+  defp op_to_match_spec_atom_op(:gt), do: :">"
+  defp op_to_match_spec_atom_op(:ge), do: :">="
+  defp op_to_match_spec_atom_op(:lt), do: :"<"
+  defp op_to_match_spec_atom_op(:le), do: :"=<"
 end

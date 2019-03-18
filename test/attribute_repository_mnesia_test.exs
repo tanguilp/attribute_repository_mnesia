@@ -41,7 +41,7 @@ defmodule AttributeRepositoryMnesiaTest do
 
   test "Basic get" do
     {:ok, res} = AttributeRepositoryMnesia.get(1, :all, @run_opts)
-    
+
     assert res["str"] == "abc"
     assert res["bool"] == false
     assert res["float"] === 1.0
@@ -104,6 +104,26 @@ defmodule AttributeRepositoryMnesiaTest do
 
   test "search eq date in complex" do
     assert ordered_ids(search('complex.datetime eq "2008-01-23T23:50:07Z"')) == [8]
+  end
+
+  test "search eq string in complex - valuepath" do
+    assert ordered_ids(search('complex[str eq "def"]')) == [2]
+  end
+
+  test "search eq bool in complex - valuepath" do
+    assert ordered_ids(search('complex[bool eq true]')) == [3, 6, 9]
+  end
+
+  test "search eq float in complex - valuepath" do
+    assert ordered_ids(search('complex[float eq 5.0e0]')) == [5]
+  end
+
+  test "search eq integer in complex - valuepath" do
+    assert ordered_ids(search('complex[int eq 4]')) == [4]
+  end
+
+  test "search eq date in complex - valuepath" do
+    assert ordered_ids(search('complex[datetime eq "2008-01-23T23:50:07Z"]')) == [8]
   end
 
   # ne operator
