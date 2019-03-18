@@ -72,6 +72,56 @@ defmodule AttributeRepositoryMnesiaTest do
     ]
   end
 
+  # and/or operators
+
+  test "and 1" do
+    assert ordered_ids(search('int ge 5 and int lt 8')) == [5, 6, 7]
+  end
+
+  test "and 2" do
+    assert ordered_ids(search('int gt 3 and datetime ge "2006-01-23T23:50:07Z"')) == [6, 7, 8, 9]
+  end
+
+  test "and 3" do
+    assert ordered_ids(search('bool eq true and datetime lt "2020-04-23T12:25:13Z"')) == [3, 6, 9]
+  end
+
+  test "and 4" do
+    assert ordered_ids(search('bool eq false and float ge 4.0 and int lt 9')) == [4, 5, 7, 8]
+  end
+
+  test "or 1" do
+    assert ordered_ids(search('int lt 5 or int ge 8')) == [1, 2, 3, 4, 8, 9]
+  end
+
+  test "or 2" do
+    assert ordered_ids(search('int lt 3 or datetime gt "2006-01-23T23:50:07Z"')) == [1, 2, 7, 8, 9]
+  end
+
+  test "or 3" do
+    assert ordered_ids(search('bool eq false or datetime ne "2006-01-23T23:50:07Z"')) == [1, 2, 3, 4, 5, 7, 8, 9]
+  end
+
+  test "or 4" do
+    assert ordered_ids(search('bool eq true or float lt 2.0 or int ge 8')) == [1, 3, 6, 8, 9]
+  end
+
+  test "and & or 1" do
+    assert ordered_ids(search('bool eq true or float lt 2.0 and int ge 8')) == [3, 6, 9]
+  end
+
+  test "and & or 2" do
+    assert ordered_ids(search('bool eq true and float lt 2.0 or int ge 8')) == [8, 9]
+  end
+
+  test "and & or 3" do
+    assert ordered_ids(search('str eq "jkl" or str eq "mno" or str eq "yz" and float ne 3.0')) == [4, 5, 9]
+  end
+
+  test "and & or 4" do
+    assert ordered_ids(search('int le 4 and bool eq false or float gt 2.0 and int lt 6')) == [1, 2, 3, 4, 5]
+  end
+
   # eq operator
 
   test "search eq string" do

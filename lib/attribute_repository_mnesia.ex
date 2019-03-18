@@ -235,6 +235,19 @@ defmodule AttributeRepositoryMnesia do
     |> MapSet.to_list()
   end
 
+  defp do_search({:not, filter}, run_opts) do
+    all_keys = MapSet.new(:mnesia.dirty_all_keys(run_opts[:instance]))
+
+    search_result = MapSet.new(do_search(filter, run_opts))
+
+    MapSet.difference(all_keys, search_result)
+    |> MapSet.to_list()
+
+    #filter
+    #|> negate_expression()
+    #|> do_search(run_opts)
+  end
+
   defp do_search({op, %AttributePath{attribute: attribute} = attr_path, value},
                  run_opts)
   when is_binary(value) do
@@ -522,4 +535,52 @@ defmodule AttributeRepositoryMnesia do
   defp op_to_match_spec_atom_op(:ge), do: :">="
   defp op_to_match_spec_atom_op(:lt), do: :"<"
   defp op_to_match_spec_atom_op(:le), do: :"=<"
+
+  defp negate_expression({:attrExp, attr_exp}) do
+    {:attrExp, negate_expression(attr_exp)}
+  end
+
+  defp negate_expression({:not, exp}) do
+    negate_expression(exp)
+  end
+
+  defp negate_expression({:pr, _attr_path}) do
+    raise "Unsupported"
+  end
+
+  defp negate_expression({:eq, attr_path, comp_value}) do
+    {:ne, attr_path, comp_value}
+  end
+
+  defp negate_expression({:ne, attr_path, comp_value}) do
+    {:eq, attr_path, comp_value}
+  end
+
+  defp negate_expression({:gt, attr_path, comp_value}) do
+    {:le, attr_path, comp_value}
+  end
+
+  defp negate_expression({:ge, attr_path, comp_value}) do
+    {:lt, attr_path, comp_value}
+  end
+
+  defp negate_expression({:lt, attr_path, comp_value}) do
+    {:ge, attr_path, comp_value}
+  end
+
+  defp negate_expression({:le, attr_path, comp_value}) do
+    {:gt, attr_path, comp_value}
+  end
+
+  defp negate_expression({:and, filter_l, filter_r}) do
+    {:or, filter_l, filter_r}
+  end
+
+  defp negate_expression({:or, filter_l, filter_r}) do
+    {:and, filter_l, filter_r}
+  end
+
+  defp negate_expression({:valuePath, attr_path, val_filter}) do
+    {:valuePath, attr_path, negate_expression(val_filter)}
+  end
 end
