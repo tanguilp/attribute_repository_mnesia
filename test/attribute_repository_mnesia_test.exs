@@ -122,6 +122,24 @@ defmodule AttributeRepositoryMnesiaTest do
     assert ordered_ids(search('int le 4 and bool eq false or float gt 2.0 and int lt 6')) == [1, 2, 3, 4, 5]
   end
 
+  # not operator
+
+  test "not 1" do
+    assert ordered_ids(search('not (bool eq true)')) == [1, 2, 4, 5, 7, 8]
+  end
+
+  test "not 2" do
+    assert ordered_ids(search('not (float gt 3.5)')) == [1, 2, 3]
+  end
+
+  test "not 3" do
+    assert ordered_ids(search('not (not (float gt 3.5))')) == [4, 5, 6, 7, 8, 9]
+  end
+
+  test "not 4" do
+    assert ordered_ids(search('not (multval pr)')) == [1, 2, 5, 6, 7, 8, 9]
+  end
+
   # eq operator
 
   test "search eq string" do

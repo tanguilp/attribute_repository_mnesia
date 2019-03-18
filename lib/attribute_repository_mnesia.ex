@@ -243,6 +243,9 @@ defmodule AttributeRepositoryMnesia do
     MapSet.difference(all_keys, search_result)
     |> MapSet.to_list()
 
+    #FIXME: probably very inneficient
+    # alternative below but it's hard to handle the :pr operator negation with mnesia bag tables
+
     #filter
     #|> negate_expression()
     #|> do_search(run_opts)
