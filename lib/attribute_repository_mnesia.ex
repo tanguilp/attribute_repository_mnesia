@@ -235,7 +235,7 @@ defmodule AttributeRepositoryMnesia do
     |> MapSet.to_list()
   end
 
-  defp do_search({:eq, %AttributePath{attribute: attribute} = attr_path, value},
+  defp do_search({op, %AttributePath{attribute: attribute} = attr_path, value},
                  run_opts)
   when is_binary(value) do
     match_spec =
@@ -247,7 +247,7 @@ defmodule AttributeRepositoryMnesia do
             attribute,
             attribute_path_to_match_spec_field(attr_path)
           },
-          [{:is_binary, :"$2"}, {:"==", :'$2', value}],
+          [{:is_binary, :"$2"}, {op_to_match_spec_atom_op(op), :'$2', value}],
           [:"$1"]
         }
       ]
@@ -255,9 +255,9 @@ defmodule AttributeRepositoryMnesia do
     :mnesia.dirty_select(run_opts[:instance], match_spec)
   end
 
-  defp do_search({:eq, %AttributePath{attribute: attribute} = attr_path, value},
+  defp do_search({op, %AttributePath{attribute: attribute} = attr_path, value},
                  run_opts)
-  when value in [true, false] do
+  when is_boolean(value) and op in [:eq, :ne] do
     match_spec =
       [
         {
@@ -267,7 +267,7 @@ defmodule AttributeRepositoryMnesia do
             attribute,
             attribute_path_to_match_spec_field(attr_path)
           },
-          [{:"==", :'$2', value}],
+          [{op_to_match_spec_atom_op(op), :'$2', value}],
           [:"$1"]
         }
       ]
@@ -275,190 +275,12 @@ defmodule AttributeRepositoryMnesia do
     :mnesia.dirty_select(run_opts[:instance], match_spec)
   end
 
-  defp do_search({:eq, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_float(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_float, :"$2"}, {:"==", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:eq, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_integer(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_integer, :"$2"}, {:"==", :"$2", value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:eq, %AttributePath{attribute: attribute} = attr_path, %DateTime{} = value},
-                 run_opts) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field_datetime(attr_path)
-          },
-          [{:"==", :"$2", DateTime.to_unix(value)}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:ne, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_binary(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_binary, :"$2"}, {:"=/=", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:ne, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when value in [true, false] do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:"==", :"$2", !value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:ne, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_float(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_float, :"$2"}, {:"/=", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:ne, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_integer(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_integer, :"$2"}, {:"/=", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:ne, %AttributePath{attribute: attribute} = attr_path, %DateTime{} = value},
-                 run_opts) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field_datetime(attr_path)
-          },
-          [{:"/=", :'$2', DateTime.to_unix(value)}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:gt, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_binary(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_binary, :"$2"}, {:">", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:gt, %AttributePath{}, value}, _)
-  when value in [true, false] do
+  defp do_search({_op, %AttributePath{}, value}, _) when is_boolean(value) do
     raise "Invalid operation for boolean"
   end
 
-  defp do_search({:gt, %AttributePath{attribute: attribute} = attr_path, value},
+
+  defp do_search({op, %AttributePath{attribute: attribute} = attr_path, value},
                  run_opts)
   when is_float(value) do
     match_spec =
@@ -470,7 +292,7 @@ defmodule AttributeRepositoryMnesia do
             attribute,
             attribute_path_to_match_spec_field(attr_path)
           },
-          [{:is_float, :"$2"}, {:">", :'$2', value}],
+          [{:is_float, :"$2"}, {op_to_match_spec_atom_op(op), :'$2', value}],
           [:"$1"]
         }
       ]
@@ -478,7 +300,7 @@ defmodule AttributeRepositoryMnesia do
     :mnesia.dirty_select(run_opts[:instance], match_spec)
   end
 
-  defp do_search({:gt, %AttributePath{attribute: attribute} = attr_path, value},
+  defp do_search({op, %AttributePath{attribute: attribute} = attr_path, value},
                  run_opts)
   when is_integer(value) do
     match_spec =
@@ -490,7 +312,7 @@ defmodule AttributeRepositoryMnesia do
             attribute,
             attribute_path_to_match_spec_field(attr_path)
           },
-          [{:is_integer, :"$2"}, {:">", :'$2', value}],
+          [{:is_integer, :"$2"}, {op_to_match_spec_atom_op(op), :"$2", value}],
           [:"$1"]
         }
       ]
@@ -498,7 +320,7 @@ defmodule AttributeRepositoryMnesia do
     :mnesia.dirty_select(run_opts[:instance], match_spec)
   end
 
-  defp do_search({:gt, %AttributePath{attribute: attribute} = attr_path, %DateTime{} = value},
+  defp do_search({op, %AttributePath{attribute: attribute} = attr_path, %DateTime{} = value},
                  run_opts) do
     match_spec =
       [
@@ -509,259 +331,7 @@ defmodule AttributeRepositoryMnesia do
             attribute,
             attribute_path_to_match_spec_field_datetime(attr_path)
           },
-          [{:">", :'$2', DateTime.to_unix(value)}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:ge, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_binary(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_binary, :"$2"}, {:">=", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:ge, %AttributePath{}, value}, _)
-  when value in [true, false] do
-    raise "Invalid operation for boolean"
-  end
-
-  defp do_search({:ge, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_float(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_float, :"$2"}, {:">=", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:ge, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_integer(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_integer, :"$2"}, {:">=", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:ge, %AttributePath{attribute: attribute} = attr_path, %DateTime{} = value},
-                 run_opts) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field_datetime(attr_path)
-          },
-          [{:">=", :'$2', DateTime.to_unix(value)}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:lt, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_binary(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_binary, :"$2"}, {:"<", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:lt, %AttributePath{}, value}, _)
-  when value in [true, false] do
-    raise "Invalid operation for boolean"
-  end
-
-  defp do_search({:lt, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_float(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_float, :"$2"}, {:"<", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:lt, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_integer(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_integer, :"$2"}, {:"<", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:lt, %AttributePath{attribute: attribute} = attr_path, %DateTime{} = value},
-                 run_opts) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field_datetime(attr_path)
-          },
-          [{:"<", :'$2', DateTime.to_unix(value)}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:le, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_binary(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_binary, :"$2"}, {:"=<", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:le, %AttributePath{}, value}, _)
-  when value in [true, false] do
-    raise "Invalid operation for boolean"
-  end
-
-  defp do_search({:le, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_float(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_float, :"$2"}, {:"=<", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:le, %AttributePath{attribute: attribute} = attr_path, value},
-                 run_opts)
-  when is_integer(value) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field(attr_path)
-          },
-          [{:is_integer, :"$2"}, {:"=<", :'$2', value}],
-          [:"$1"]
-        }
-      ]
-
-    :mnesia.dirty_select(run_opts[:instance], match_spec)
-  end
-
-  defp do_search({:le, %AttributePath{attribute: attribute} = attr_path, %DateTime{} = value},
-                 run_opts) do
-    match_spec =
-      [
-        {
-          {
-            run_opts[:instance],
-            :"$1",
-            attribute,
-            attribute_path_to_match_spec_field_datetime(attr_path)
-          },
-          [{:"=<", :'$2', DateTime.to_unix(value)}],
+          [{op_to_match_spec_atom_op(op), :"$2", DateTime.to_unix(value)}],
           [:"$1"]
         }
       ]
@@ -944,22 +514,6 @@ defmodule AttributeRepositoryMnesia do
     sub_attribute: sub_attribute
   }) do
     %{sub_attribute => {:datetime, :"$2"}}
-  end
-
-  defp to_match_spec_guards(op, %DateTime{} = value) do
-    [{op_to_match_spec_atom_op(op), :'$2', DateTime.to_unix(value)}]
-  end
-
-  defp to_match_spec_guards(op, value) when is_float(value) do
-    [{:is_float, :"$2"}, {op_to_match_spec_atom_op(op), :'$2', value}]
-  end
-
-  defp to_match_spec_guards(op, value) when is_integer(value) do
-    [{:is_integer, :"$2"}, {op_to_match_spec_atom_op(op), :"$2", value}]
-  end
-
-  defp to_match_spec_guards(op, value) do
-    [{op_to_match_spec_atom_op(op), :'$2', value}]
   end
 
   defp op_to_match_spec_atom_op(:eq), do: :"=="
