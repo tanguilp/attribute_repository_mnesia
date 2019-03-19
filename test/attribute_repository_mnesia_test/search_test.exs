@@ -1,4 +1,4 @@
-defmodule AttributeRepositoryMnesiaTest do
+defmodule AttributeRepositoryMnesiaTest.Search do
   use ExUnit.Case
 
   @init_opts []
@@ -29,47 +29,19 @@ defmodule AttributeRepositoryMnesiaTest do
         @run_opts)
     end
 
-    AttributeRepositoryMnesia.put(3, %{"multval" => "Hi"}, @run_opts)
-    AttributeRepositoryMnesia.put(3, %{"multval" => "Salut"}, @run_opts)
-    AttributeRepositoryMnesia.put(3, %{"multval" => "Привет"}, @run_opts)
+    AttributeRepositoryMnesia.modify(3,
+                                     [
+                                       {:add, "multval", "Hi"},
+                                       {:add, "multval", "Salut"},
+                                       {:add, "multval", "Привет"}
+                                     ], @run_opts)
 
-    AttributeRepositoryMnesia.put(4, %{"multval" => "Hi"}, @run_opts)
-    AttributeRepositoryMnesia.put(4, %{"multval" => "Salut"}, @run_opts)
+    AttributeRepositoryMnesia.modify(4, [{:add, "multval", "Hi"},
+                                         {:add, "multval", "Salut"}], @run_opts)
 
-    AttributeRepositoryMnesia.put(1, %{"nil_attr" => nil}, @run_opts)
-    AttributeRepositoryMnesia.put(1, %{"nil_attr_complex" => %{"nil_attr" => nil, "not_nil_attr" => "a value"}}, @run_opts)
-
-    IO.inspect(AttributeRepositoryMnesia.get(1, :all, @run_opts))
-  end
-
-  test "Basic get" do
-    {:ok, res} = AttributeRepositoryMnesia.get(1, :all, @run_opts)
-
-    assert res["str"] == "abc"
-    assert res["bool"] == false
-    assert res["float"] === 1.0
-    assert res["int"] === 1
-    assert DateTime.compare(res["datetime"],
-                            elem(DateTime.from_iso8601("2001-01-23T23:50:07Z"), 1))
-    assert res["complex"]["str"] == "abc"
-    assert res["complex"]["bool"] == false
-    assert res["complex"]["float"] === 1.0
-    assert res["complex"]["int"] === 1
-    assert DateTime.compare(res["complex"]["datetime"],
-                            elem(DateTime.from_iso8601("2001-01-23T23:50:07Z"), 1))
-  end
-
-  test "Multival get" do
-    {:ok, res} = AttributeRepositoryMnesia.get(3, :all, @run_opts)
-
-    assert res["multval"] in [
-      ["Hi", "Salut", "Привет"],
-      ["Hi", "Привет", "Salut"],
-      ["Salut", "Привет", "Hi"],
-      ["Привет", "Salut", "Hi"],
-      ["Привет", "Hi", "Salut"],
-      ["Salut", "Hi", "Привет"]
-    ]
+    AttributeRepositoryMnesia.modify(1, [{:add, "nil_attr", nil},
+                                         {:add, "nil_attr_complex", %{"nil_attr" => nil, "not_nil_attr" => "a value"}}],
+                                         @run_opts)
   end
 
   # and/or operators
@@ -138,6 +110,14 @@ defmodule AttributeRepositoryMnesiaTest do
 
   test "not 4" do
     assert ordered_ids(search('not (multval pr)')) == [1, 2, 5, 6, 7, 8, 9]
+  end
+
+  test "not 5" do
+    assert ordered_ids(search('not (complex.bool eq false)')) == [3, 6, 9]
+  end
+
+  test "not 6" do
+    assert ordered_ids(search('not (complex[bool eq false or int eq 3])')) == [6, 9]
   end
 
   # eq operator
@@ -580,6 +560,12 @@ defmodule AttributeRepositoryMnesiaTest do
     assert ordered_ids(search('nil_attr_complex[not_nil_attr pr] and bool eq false')) == [1]
   end
 
+  # valuePath :not operator tests
+
+  test "search valuepath not operator 1" do
+    assert ordered_ids(search('complex[not (str eq "abc")]')) == [2, 3, 4, 5, 6, 7, 8, 9]
+  end
+
   # multivalued test
 
   test "multivalued attr 1" do
@@ -602,7 +588,7 @@ defmodule AttributeRepositoryMnesiaTest do
     AttributeRepositoryMnesia.search(parsed, :all, [instance: :test])
   end
 
-  defp ordered_ids(search_result_list) do
+  def ordered_ids(search_result_list) do
     search_result_list
     |> Enum.map(fn {resource_id, _resource} -> resource_id end)
     |> Enum.sort()

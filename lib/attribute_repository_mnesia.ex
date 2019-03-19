@@ -30,12 +30,12 @@ defmodule AttributeRepositoryMnesia do
       index: [:value]
     ] ++ (init_opts[:mnesia_config] || [])) do
       {:atomic, :ok} ->
-        Logger.debug("#{__MODULE__}: created table for instance #{run_opts[:instance]}")
+        Logger.debug("#{__MODULE__}: created table of instance #{run_opts[:instance]}")
 
         :ok
 
       {:aborted, reason} ->
-        Logger.error("#{__MODULE__}: failed to create table for instance " <>
+        Logger.error("#{__MODULE__}: failed to create table of instance " <>
           "#{run_opts[:instance]} (reason: #{inspect reason})")
 
         {:error, reason}
@@ -134,48 +134,134 @@ defmodule AttributeRepositoryMnesia do
 
   def put(resource_id, %{} = resource, run_opts) do
     case :mnesia.transaction(fn ->
+      # first we destroy the whole record
+      :mnesia.delete({run_opts[:instance], resource_id})
       for {attr, val} <- resource do
-        :mnesia.write({
-          run_opts[:instance],
-          resource_id,
-          attr,
-          case val do
-            %DateTime{} ->
-              {:datetime, DateTime.to_unix(val)}
+        case val do
+          [_ | _] ->
+            Enum.each(val, fn elmt -> put_attribute(resource_id, attr, elmt, run_opts) end)
 
-            %{} ->
-              Enum.reduce(
-                val,
-                %{},
-                fn
-                  {key, %DateTime{} = value}, acc ->
-                    Map.put(acc, key, {:datetime, DateTime.to_unix(value)})
-
-                  {key, value}, acc ->
-                    Map.put(acc, key, value)
-                end
-              )
-
-            _ ->
-              val
-          end
-        })
+          _ ->
+            put_attribute(resource_id, attr, val, run_opts)
+        end
       end
     end) do
       {:atomic, _} ->
         Logger.debug("#{__MODULE__}: written `#{inspect resource}` " <>
           "for resource_id `#{inspect resource_id}` " <>
-          "for instance #{run_opts[:instance]}")
+          "of instance #{run_opts[:instance]}")
 
         {:ok, resource}
 
       {:aborted, reason} ->
+        IO.inspect(reason)
         Logger.error("#{__MODULE__}: failed to write #{inspect resource} " <>
           "for resource_id `#{inspect(resource_id)}` " <>
-          "for instance #{run_opts[:instance]} (reason: #{inspect reason})")
+          "of instance #{run_opts[:instance]} (reason: #{inspect reason})")
 
         {:error, AttributeRepository.WriteError.exception([])}
     end
+  end
+
+  defp put_attribute(resource_id, attr, val, run_opts) do
+    :mnesia.write({
+      run_opts[:instance],
+      resource_id,
+      attr,
+      transform_value_before_insert(val)
+    })
+  end
+
+  defp transform_value_before_insert(%DateTime{} = datetime) do
+    {:datetime, DateTime.to_unix(datetime)}
+  end
+
+  defp transform_value_before_insert(%{} = map) do
+    Enum.reduce(
+      map,
+      %{},
+      fn
+        {key, %DateTime{} = value}, acc ->
+          Map.put(acc, key, {:datetime, DateTime.to_unix(value)})
+
+        {key, value}, acc ->
+          Map.put(acc, key, value)
+      end
+    )
+  end
+
+  defp transform_value_before_insert(value), do: value
+
+  @impl AttributeRepository.Write
+
+  def modify(resource_id, op_list, run_opts) do
+    case :mnesia.transaction(fn ->
+      Enum.each(
+        op_list,
+        fn op -> modify_op(resource_id, op, run_opts) end
+      )
+    end) do
+      {:atomic, _} ->
+        Logger.debug("#{__MODULE__}: modified with `#{inspect op_list}` " <>
+          "for resource_id `#{inspect resource_id}` " <>
+          "of instance #{run_opts[:instance]}")
+
+        :ok
+
+      {:aborted, reason} ->
+        IO.inspect(reason)
+        Logger.error("#{__MODULE__}: failed to modify with #{inspect op_list} " <>
+          "for resource_id `#{inspect(resource_id)}` " <>
+          "of instance #{run_opts[:instance]} (reason: #{inspect reason})")
+
+        {:error, AttributeRepository.WriteError.exception([])}
+    end
+  end
+
+  defp modify_op(resource_id, {:add, attribute, value}, run_opts) do
+    :mnesia.write({
+      run_opts[:instance],
+      resource_id,
+      attribute,
+      transform_value_before_insert(value)
+    })
+  end
+
+  defp modify_op(resource_id, {:replace, attribute, value}, run_opts) do
+
+    Enum.each(
+      :mnesia.match_object({run_opts[:instance], resource_id, attribute, :"_"}),
+      fn object -> :mnesia.delete_object(object) end
+    )
+
+    :mnesia.write({
+      run_opts[:instance],
+      resource_id,
+      attribute,
+      transform_value_before_insert(value)
+    })
+  end
+
+  defp modify_op(resource_id, {:replace, attribute, old_value, new_value}, run_opts) do
+    :mnesia.delete_object({run_opts[:instance], resource_id, attribute, old_value})
+
+    :mnesia.write({
+      run_opts[:instance],
+      resource_id,
+      attribute,
+      transform_value_before_insert(new_value)
+    })
+  end
+
+  defp modify_op(resource_id, {:delete, attribute}, run_opts) do
+    Enum.each(
+      :mnesia.match_object({run_opts[:instance], resource_id, attribute, :"_"}),
+      fn object -> :mnesia.delete_object(object) end
+    )
+  end
+
+  defp modify_op(resource_id, {:delete, attribute, value}, run_opts) do
+    :mnesia.delete_object({run_opts[:instance], resource_id, attribute, value})
   end
 
   @impl AttributeRepository.Write
@@ -186,13 +272,13 @@ defmodule AttributeRepositoryMnesia do
     end) do
       {:atomic, _} ->
         Logger.debug("#{__MODULE__}: deleted resource_id `#{inspect resource_id}` " <>
-          "for instance #{run_opts[:instance]}")
+          "of instance #{run_opts[:instance]}")
 
         :ok
 
       {:aborted, reason} ->
         Logger.error("#{__MODULE__}: failed to delete resource_id `#{inspect resource_id}` " <>
-          "for instance #{run_opts[:instance]} (reason: #{inspect reason})")
+          "of instance #{run_opts[:instance]} (reason: #{inspect reason})")
 
         {:error, AttributeRepository.WriteError.exception([])}
     end
