@@ -7,6 +7,7 @@ defmodule AttributeRepositoryMnesia do
 
   use AttributeRepository.Read
   use AttributeRepository.Write
+  use AttributeRepository.Search
 
   alias AttributeRepository.Search.AttributePath
 
@@ -40,7 +41,6 @@ defmodule AttributeRepositoryMnesia do
 
         {:error, reason}
     end
-
   end
 
   @impl AttributeRepository.Read
