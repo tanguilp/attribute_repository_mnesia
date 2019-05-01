@@ -11,10 +11,17 @@ defmodule AttributeRepositoryMnesia do
 
   alias AttributeRepository.Search.AttributePath
 
+  @behaviour AttributeRepository.Start
   @behaviour AttributeRepository.Install
   @behaviour AttributeRepository.Read
   @behaviour AttributeRepository.Write
   @behaviour AttributeRepository.Search
+
+  @impl AttributeRepository.Start
+
+  def start(_init_opts) do
+    :mnesia.start()
+  end
 
   @impl AttributeRepository.Install
 
@@ -33,6 +40,9 @@ defmodule AttributeRepositoryMnesia do
       {:atomic, :ok} ->
         Logger.debug("#{__MODULE__}: created table of instance #{run_opts[:instance]}")
 
+        :ok
+
+      {:aborted, {:already_exists, _}} ->
         :ok
 
       {:aborted, reason} ->

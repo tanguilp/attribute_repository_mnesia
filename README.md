@@ -159,6 +159,8 @@ The `AttributeRepository.run_opts()` for this module are the following:
 - [x] `AttributeRepository.Read`
 - [x] `AttributeRepository.Write`
 - [x] `AttributeRepository.Search`
+- [ ] `AttributeRepository.SupervisedStart`
+- [x] `AttributeRepository.Start`
 
 ## Supported attribute types
 
