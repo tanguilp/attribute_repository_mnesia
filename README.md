@@ -15,9 +15,10 @@ end
 ## Usage
 
 `run_opts`:
-- `:instance`: the instance name (`Atom.t()`)
+- `:instance`: the instance name (`Atom.t()`). **Mandatory**
 
 `init_opts`:
+- `:instance`: the instance name (`Atom.t()`). **Mandatory**
 - `:mnesia_config`: mnesia create table's config parameters
 
 When calling the `AttributeRepositoryMnesia.install/2` function, a new bag table whose name is

@@ -1,13 +1,13 @@
 defmodule AttributeRepositoryMnesiaTest.Search do
   use ExUnit.Case
 
-  @init_opts []
+  @init_opts [instance: :test]
   @run_opts [instance: :test]
 
   setup_all do
     AttributeRepositoryMnesia.install(@run_opts, @init_opts)
 
-    :mnesia.start()
+    AttributeRepositoryMnesia.start(@init_opts)
 
     for i <- 1..9 do
       AttributeRepositoryMnesia.put(

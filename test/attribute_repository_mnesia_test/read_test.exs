@@ -1,13 +1,13 @@
 defmodule AttributeRepositoryMnesiaTest.Read do
   use ExUnit.Case
 
-  @init_opts []
+  @init_opts [instance: :test]
   @run_opts [instance: :test]
 
   setup_all do
     AttributeRepositoryMnesia.install(@run_opts, @init_opts)
 
-    :mnesia.start()
+    AttributeRepositoryMnesia.start(@init_opts)
 
     for i <- 1..9 do
       AttributeRepositoryMnesia.put(
@@ -59,6 +59,12 @@ defmodule AttributeRepositoryMnesiaTest.Read do
     assert res["complex"]["int"] === 1
     assert DateTime.compare(res["complex"]["datetime"],
                             elem(DateTime.from_iso8601("2001-01-23T23:50:07Z"), 1))
+  end
+
+  test "Get with no attribute returned" do
+    attrs = ["nonexisting_attr_1", "nonexisting_attr_2"]
+
+    assert {:ok, _} = AttributeRepositoryMnesia.get(1, attrs, @run_opts)
   end
 
   test "Multival get" do

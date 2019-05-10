@@ -17,10 +17,18 @@ defmodule AttributeRepositoryMnesia do
   @behaviour AttributeRepository.Write
   @behaviour AttributeRepository.Search
 
+  # due to the use of the bag type of table, we need to have an attribute that allows to
+  # determine the existence of an entry, even if all other attributes have been deleted
+  # or in the case the requested attributes do not exist
+
+  @existence_attribute "__attribute_repository_id"
+
   @impl AttributeRepository.Start
 
-  def start(_init_opts) do
+  def start(init_opts) do
     :mnesia.start()
+
+    :mnesia.wait_for_tables([init_opts[:instance]], 10000)
   end
 
   @impl AttributeRepository.Install
@@ -68,19 +76,16 @@ defmodule AttributeRepositoryMnesia do
     end
   end
 
-  #FIXME: what if none attributes are present but the entity does exist?
-  #it now returns NotFoundError exception but should not
-
   def get(resource_id, attribute_list, run_opts) do
     case :mnesia.transaction(fn ->
       match_spec = Enum.reduce(
-        attribute_list,
+        attribute_list ++ [@existence_attribute],
         [],
         fn
           attribute, acc ->
             [{{run_opts[:instance], resource_id, attribute, :"$1"},
               [],
-              [{{attribute, :"$1"}}]}]
+              [{{run_opts[:instance], resource_id, attribute, :"$1"}}]}]
             ++ acc
         end
       )
@@ -103,6 +108,9 @@ defmodule AttributeRepositoryMnesia do
       record_list,
       %{},
       fn
+        {_table, _resource_id, @existence_attribute, _}, res ->
+          res
+
         {_table, _resource_id, attribute, value}, res ->
           value =
             case value do
@@ -146,6 +154,10 @@ defmodule AttributeRepositoryMnesia do
     case :mnesia.transaction(fn ->
       # first we destroy the whole record
       :mnesia.delete({run_opts[:instance], resource_id})
+
+      # adding the existence attribute, setting the value to the resource id (no better idea)
+      put_attribute(resource_id, @existence_attribute, resource_id, run_opts)
+
       for {attr, val} <- resource do
         case val do
           [_ | _] ->
@@ -164,7 +176,6 @@ defmodule AttributeRepositoryMnesia do
         {:ok, resource}
 
       {:aborted, reason} ->
-        IO.inspect(reason)
         Logger.error("#{__MODULE__}: failed to write #{inspect resource} " <>
           "for resource_id `#{inspect(resource_id)}` " <>
           "of instance #{run_opts[:instance]} (reason: #{inspect reason})")
@@ -205,26 +216,31 @@ defmodule AttributeRepositoryMnesia do
   @impl AttributeRepository.Write
 
   def modify(resource_id, op_list, run_opts) do
-    case :mnesia.transaction(fn ->
-      Enum.each(
-        op_list,
-        fn op -> modify_op(resource_id, op, run_opts) end
-      )
-    end) do
-      {:atomic, _} ->
-        Logger.debug("#{__MODULE__}: modified with `#{inspect op_list}` " <>
-          "for resource_id `#{inspect resource_id}` " <>
-          "of instance #{run_opts[:instance]}")
+    case get(resource_id, [@existence_attribute], run_opts) do
+      {:ok, _} ->
+        case :mnesia.transaction(fn ->
+          Enum.each(
+            op_list,
+            fn op -> modify_op(resource_id, op, run_opts) end
+          )
+        end) do
+          {:atomic, _} ->
+            Logger.debug("#{__MODULE__}: modified with `#{inspect op_list}` " <>
+              "for resource_id `#{inspect resource_id}` " <>
+              "of instance #{run_opts[:instance]}")
 
-        :ok
+            :ok
 
-      {:aborted, reason} ->
-        IO.inspect(reason)
-        Logger.error("#{__MODULE__}: failed to modify with #{inspect op_list} " <>
-          "for resource_id `#{inspect(resource_id)}` " <>
-          "of instance #{run_opts[:instance]} (reason: #{inspect reason})")
+          {:aborted, reason} ->
+            Logger.error("#{__MODULE__}: failed to modify with #{inspect op_list} " <>
+              "for resource_id `#{inspect(resource_id)}` " <>
+              "of instance #{run_opts[:instance]} (reason: #{inspect reason})")
 
-        {:error, AttributeRepository.WriteError.exception([])}
+            {:error, AttributeRepository.WriteError.exception([])}
+        end
+
+      {:error, %AttributeRepository.Read.NotFoundError{}} ->
+        {:error, AttributeRepository.Read.NotFoundError.exception("Entry not found")}
     end
   end
 
@@ -240,7 +256,7 @@ defmodule AttributeRepositoryMnesia do
   defp modify_op(resource_id, {:replace, attribute, value}, run_opts) do
 
     Enum.each(
-      :mnesia.match_object({run_opts[:instance], resource_id, attribute, :"_"}),
+      :mnesia.match_object({run_opts[:instance], resource_id, attribute, :_}),
       fn object -> :mnesia.delete_object(object) end
     )
 
@@ -265,7 +281,7 @@ defmodule AttributeRepositoryMnesia do
 
   defp modify_op(resource_id, {:delete, attribute}, run_opts) do
     Enum.each(
-      :mnesia.match_object({run_opts[:instance], resource_id, attribute, :"_"}),
+      :mnesia.match_object({run_opts[:instance], resource_id, attribute, :_}),
       fn object -> :mnesia.delete_object(object) end
     )
   end
@@ -455,7 +471,7 @@ defmodule AttributeRepositoryMnesia do
     attribute: attribute,
     sub_attribute: nil
   }}, run_opts) do
-    :mnesia.dirty_match_object({run_opts[:instance], :"_", attribute, :"_"})
+    :mnesia.dirty_match_object({run_opts[:instance], :_, attribute, :_})
     |> Enum.filter(
       fn
         {_table, _resource_id, _attribute, nil} -> false
@@ -473,7 +489,7 @@ defmodule AttributeRepositoryMnesia do
     attribute: attribute,
     sub_attribute: sub_attribute
   }}, run_opts) do
-    :mnesia.dirty_match_object({run_opts[:instance], :"_", attribute, %{sub_attribute => :"_"}})
+    :mnesia.dirty_match_object({run_opts[:instance], :_, attribute, %{sub_attribute => :_}})
     |> Enum.filter(
       fn
         {_table, _resource_id, _attribute, %{^sub_attribute => nil}} -> false
