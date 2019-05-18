@@ -67,6 +67,22 @@ defmodule AttributeRepositoryMnesiaTest.Read do
     assert {:ok, _} = AttributeRepositoryMnesia.get(1, attrs, @run_opts)
   end
 
+  test "Get a multi-valued attribute with one value returns a list" do
+    AttributeRepositoryMnesia.put(10, %{"multivalued_1" => ["single_value"]}, @run_opts)
+
+    {:ok, res} = AttributeRepositoryMnesia.get(10, ["multivalued_1"], @run_opts)
+
+    assert res["multivalued_1"] == ["single_value"]
+  end
+
+  test "Get a multi-valued attribute with no value returns an empty list" do
+    AttributeRepositoryMnesia.put(11, %{"multivalued_2" => []}, @run_opts)
+
+    {:ok, res} = AttributeRepositoryMnesia.get(11, ["multivalued_2"], @run_opts)
+
+    assert res["multivalued_2"] == []
+  end
+
   test "Multival get" do
     {:ok, res} = AttributeRepositoryMnesia.get(3, :all, @run_opts)
 

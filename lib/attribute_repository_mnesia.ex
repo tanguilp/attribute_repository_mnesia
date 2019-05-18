@@ -23,6 +23,11 @@ defmodule AttributeRepositoryMnesia do
 
   @existence_attribute "__attribute_repository_id"
 
+  # for the same reason (use of bag), we need an extra metadata attribute to specify when
+  # an attribute is multivalued, even when there is only one value in it or no value
+
+  @multivalued_attribute_marker "__attribute_repository_multivalued"
+
   @impl AttributeRepository.Start
 
   def start(init_opts) do
@@ -134,15 +139,28 @@ defmodule AttributeRepositoryMnesia do
                 value
             end
 
-          case Map.get(res, attribute) do
-            nil ->
-              Map.put(res, attribute, value)
+          if value == @multivalued_attribute_marker do
+            case Map.get(res, attribute) do
+              nil ->
+                Map.put(res, attribute, [])
 
-            l when is_list(l) ->
-              Map.put(res, attribute, [value | l])
+              existing_value when not is_list(existing_value) ->
+                Map.put(res, attribute, [existing_value])
 
-            simple_val ->
-              Map.put(res, attribute, [value, simple_val])
+              _ ->
+                res
+            end
+          else
+            case Map.get(res, attribute) do
+              nil ->
+                Map.put(res, attribute, value)
+
+              l when is_list(l) ->
+                Map.put(res, attribute, [value | l])
+
+              existing_val ->
+                Map.put(res, attribute, [value, existing_val])
+            end
           end
       end
     )
@@ -160,7 +178,9 @@ defmodule AttributeRepositoryMnesia do
 
       for {attr, val} <- resource do
         case val do
-          [_ | _] ->
+          l when is_list(l) ->
+            put_attribute(resource_id, attr, @multivalued_attribute_marker, run_opts)
+
             Enum.each(val, fn elmt -> put_attribute(resource_id, attr, elmt, run_opts) end)
 
           _ ->
