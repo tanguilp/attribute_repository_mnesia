@@ -333,9 +333,11 @@ defmodule AttributeRepositoryMnesia do
   @impl AttributeRepository.Search
 
   def search(filter, attributes, run_opts) do
-    for resource_id <- Enum.dedup(do_search(filter, run_opts)) do
-      {resource_id, get!(resource_id, attributes, run_opts)}
-    end
+    {:ok,
+      for resource_id <- Enum.dedup(do_search(filter, run_opts)) do
+        {resource_id, get!(resource_id, attributes, run_opts)}
+      end
+    }
   rescue
     e ->
       {:error, e}
