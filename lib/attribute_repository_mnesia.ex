@@ -265,6 +265,20 @@ defmodule AttributeRepositoryMnesia do
   end
 
   defp modify_op(resource_id, {:add, attribute, value}, run_opts) do
+    case :mnesia.match_object(
+      {run_opts[:instance], resource_id, @multivalued_attribute_marker, :_})
+    do
+      # the attribute is not multivalued, we delete it before inserting the new value
+      [] ->
+        Enum.each(
+          :mnesia.match_object({run_opts[:instance], resource_id, attribute, :_}),
+          fn object -> :mnesia.delete_object(object) end
+        )
+
+      _ ->
+        :ok
+    end
+
     :mnesia.write({
       run_opts[:instance],
       resource_id,
@@ -274,7 +288,6 @@ defmodule AttributeRepositoryMnesia do
   end
 
   defp modify_op(resource_id, {:replace, attribute, value}, run_opts) do
-
     Enum.each(
       :mnesia.match_object({run_opts[:instance], resource_id, attribute, :_}),
       fn object -> :mnesia.delete_object(object) end
